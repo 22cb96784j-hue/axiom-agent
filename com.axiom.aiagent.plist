@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.axiom.aiagent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/mac/Library/Application Support/Claude/local-agent-mode-sessions/bc722310-6e7b-4b3b-8beb-a4386b65ca33/47ce6612-44b4-4158-af73-a1d68651e61f/local_ac2dd2c0-02f6-41cd-9e6a-71712897e02c/outputs/axiom-agent/start_agent.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/mac/Library/Logs/axiom-agent.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/mac/Library/Logs/axiom-agent-error.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/mac/Library/Application Support/Claude/local-agent-mode-sessions/bc722310-6e7b-4b3b-8beb-a4386b65ca33/47ce6612-44b4-4158-af73-a1d68651e61f/local_ac2dd2c0-02f6-41cd-9e6a-71712897e02c/outputs/axiom-agent</string>
+</dict>
+</plist>
