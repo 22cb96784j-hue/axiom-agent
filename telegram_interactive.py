@@ -47,6 +47,7 @@ class InteractiveBot:
             "/clearpos":   self._cmd_clearpos,
             "/mywallet":   self._cmd_mywallet,
             "/sync":       self._cmd_sync,
+            "/balance":    self._cmd_balance,
             "/positions":  self._cmd_positions,
             "/check":      self._cmd_check,
             "/early":      self._cmd_early,
@@ -1504,6 +1505,104 @@ class InteractiveBot:
             + f"\n{closed_note}\n\n"
             f"📚 Bot memory updated.\n"
             f"_Use `/report` to see updated win rate._"
+        )
+
+    async def _cmd_balance(self, text: str) -> str:
+        """
+        /balance — Show SOL balance + open position values from Telegram.
+        """
+        import aiohttp as _aio
+        from vector_memory import _redis
+
+        wallet = self.agent._wallet_tracker.get_wallet() if hasattr(self.agent, "_wallet_tracker") else None
+        if not wallet:
+            wallet = _redis.get_json("axiom:my_wallet")
+        if not wallet or len(str(wallet)) < 32:
+            return "⚠️ No wallet set. Use `/mywallet <address>` first."
+
+        RPCS = [
+            "https://api.mainnet-beta.solana.com",
+            "https://solana-api.projectserum.com",
+        ]
+        LAMPORTS = 1_000_000_000
+
+        sol_balance = None
+        for rpc in RPCS:
+            try:
+                async with _aio.ClientSession() as s:
+                    async with s.post(rpc, json={
+                        "jsonrpc": "2.0", "id": 1,
+                        "method": "getBalance",
+                        "params": [wallet, {"commitment": "confirmed"}]
+                    }, headers={"Content-Type": "application/json"},
+                    timeout=_aio.ClientTimeout(total=10)) as r:
+                        data = await r.json()
+                sol_balance = data.get("result", {}).get("value", 0) / LAMPORTS
+                break
+            except Exception:
+                continue
+
+        if sol_balance is None:
+            return "⚠️ Could not fetch balance — RPC error. Try again."
+
+        # Get SOL price from DexScreener
+        sol_usd = 0.0
+        try:
+            async with _aio.ClientSession() as s:
+                async with s.get(
+                    "https://api.dexscreener.com/latest/dex/tokens/So11111111111111111111111111111111111111112",
+                    timeout=_aio.ClientTimeout(total=8)
+                ) as r:
+                    d = await r.json()
+            pairs = d.get("pairs") or []
+            if pairs:
+                sol_usd = float(pairs[0].get("priceUsd") or 0)
+        except Exception:
+            sol_usd = 150.0  # fallback estimate
+
+        sol_value_usd = sol_balance * sol_usd
+
+        # Build open positions summary
+        positions = self.agent._open_positions or {}
+        pos_lines = []
+        total_pos_usd = 0.0
+        for ca, pos in positions.items():
+            sym = pos.get("symbol", ca[:8])
+            sol_in = pos.get("sol_amount", 0.0)
+            entry_p = pos.get("entry_price", 0.0)
+
+            # Try to get current price
+            cur_price = 0.0
+            try:
+                async with _aio.ClientSession() as s:
+                    async with s.get(
+                        f"https://api.dexscreener.com/latest/dex/tokens/{ca}",
+                        timeout=_aio.ClientTimeout(total=6)
+                    ) as r:
+                        pd = await r.json()
+                pairs2 = pd.get("pairs") or []
+                if pairs2:
+                    cur_price = float(pairs2[0].get("priceUsd") or 0)
+            except Exception:
+                cur_price = entry_p
+
+            pnl_pct = ((cur_price - entry_p) / entry_p * 100) if entry_p > 0 else 0
+            pos_usd = sol_in * sol_usd if sol_usd > 0 else 0
+            total_pos_usd += pos_usd
+            emoji = "🟢" if pnl_pct >= 0 else "🔴"
+            pos_lines.append(
+                f"  {emoji} ${sym} | {sol_in:.3f} SOL in | P&L: {pnl_pct:+.1f}%"
+            )
+
+        pos_block = "\n".join(pos_lines) if pos_lines else "  None"
+
+        return (
+            f"💳 *Wallet Balance*\n"
+            f"━━━━━━━━━━━━━━━━━━\n"
+            f"◎ SOL: *{sol_balance:.4f}* (${sol_value_usd:.2f})\n"
+            f"📍 `{wallet[:8]}...{wallet[-4:]}`\n\n"
+            f"📊 *Open Positions:*\n{pos_block}\n\n"
+            f"💰 *Est. Portfolio:* ${sol_value_usd + total_pos_usd:.2f}"
         )
 
     async def _cmd_sync(self, text: str) -> str:
